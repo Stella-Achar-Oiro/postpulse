@@ -102,7 +102,7 @@ const createPostElement = (post) => {
                     ${post.score ? `<span>${post.score} points</span> | ` : ''}
                     <span>by ${post.by}</span> | 
                     <span>${formatDate(post.time)}</span>
-                    ${post.descendants !== undefined ? `| <a href="#" class="toggle-comments" data-post-id="${post.id}" data-comment-count="${post.descendants}">${post.descendants} comments</a>` : ''}
+                    ${post.descendants !== undefined ? `<span class="load-comments" data-post-id="${post.id}">| ${post.descendants} comments</span>` : ''}
                 </div>
             `;
             break;
@@ -113,7 +113,7 @@ const createPostElement = (post) => {
                     <span>${post.score} points</span> | 
                     <span>by ${post.by}</span> | 
                     <span>${formatDate(post.time)}</span>
-                    ${post.descendants ? `| <a href="#" class="toggle-comments" data-post-id="${post.id}" data-comment-count="${post.descendants}">${post.descendants} comments</a>` : ''}
+                    ${post.descendants ? `<span class="load-comments" data-post-id="${post.id}">| ${post.descendants} comments</span>` : ''}
                 </div>
                 <ul class="poll-options">
                     ${post.parts ? `<li>Loading poll options...</li>` : ''}
@@ -121,11 +121,19 @@ const createPostElement = (post) => {
             `;
             break;
     }
+
     content += `<div class="comments" id="comments-${post.id}"></div>`;
     postEl.innerHTML = content;
+
+    const loadCommentsSpan = postEl.querySelector('.load-comments');
+    if (loadCommentsSpan) {
+        loadCommentsSpan.addEventListener('click', () => loadComments(post.id));
+    }
+
     if (post.type === 'poll' && post.parts) {
         loadPollOptions(post.id, post.parts, postEl.querySelector('.poll-options'));
     }
+
     return postEl;
 };
 
@@ -289,52 +297,30 @@ const checkForUpdates = throttle(async () => {
 
 // Event listeners
 document.addEventListener('DOMContentLoaded', () => {
-    const dropdownButton = document.querySelector('.dropbtn');
-    const dropdownContent = document.querySelector('.dropdown-content');
-
     document.getElementById('load-more').addEventListener('click', loadMorePosts);
-    
-    // Modified event listener for dropdown links
+
     document.querySelectorAll('nav a, .dropdown-content a').forEach(link => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
-            e.stopPropagation();
             currentStoryType = e.target.dataset.storyType;
             currentPage = 1;
             loadPosts(1);
-            
-            // Close the dropdown if it's a dropdown link
-            if (link.closest('.dropdown-content')) {
-                dropdownContent.style.display = 'none';
-            }
         });
     });
-    
+
     document.addEventListener('click', (e) => {
-        if (e.target.classList.contains('toggle-comments')) {
+        if (e.target.classList.contains('load-comments')) {
             e.preventDefault();
             const postId = e.target.dataset.postId;
-            toggleComments(postId);
+            loadComments(postId);
         } else if (e.target.classList.contains('reply-link')) {
             e.preventDefault();
             const parentId = e.target.dataset.parentId;
             // Implement reply functionality here
             console.log(`Reply to comment ${parentId}`);
         }
-        
-        // Close dropdown when clicking outside
-        if (!e.target.matches('.dropbtn') && !e.target.closest('.dropdown-content')) {
-            dropdownContent.style.display = 'none';
-        }
     });
-    
-    // Toggle dropdown on button click
-    dropdownButton.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        dropdownContent.style.display = dropdownContent.style.display === 'block' ? 'none' : 'block';
-    });
-    
+
     // Initialization
     loadPosts(1);
     setInterval(checkForUpdates, 5000);
