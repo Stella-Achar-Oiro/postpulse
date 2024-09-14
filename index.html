@@ -10,12 +10,18 @@
     <header>
         <h1>ClonerNews</h1>
         <nav>
-            <a href="#" data-story-type="new">New</a>
-            <a href="#" data-story-type="top">Top</a>
-            <a href="#" data-story-type="best">Best</a>
-            <a href="#" data-story-type="ask">Ask</a>
-            <a href="#" data-story-type="show">Show</a>
+            <div class="dropdown">
+                <button class="dropbtn">Stories</button>
+                <div class="dropdown-content">
+                    <a href="#" data-story-type="new">New</a>
+                    <a href="#" data-story-type="top">Top</a>
+                    <a href="#" data-story-type="best">Best</a>
+                    <a href="#" data-story-type="ask">Ask</a>
+                    <a href="#" data-story-type="show">Show</a>
+                </div>
+            </div>
             <a href="#" data-story-type="job">Jobs</a>
+            <a href="#" data-story-type="poll">Polls</a>
         </nav>
     </header>
     
@@ -27,9 +33,6 @@
     
     <div id="notifications"></div>
     
-    <script src="js/utils.js"></script>
-    <script src="js/api.js"></script>
-    <script src="js/ui.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
