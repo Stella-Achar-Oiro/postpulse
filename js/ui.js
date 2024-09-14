@@ -2,26 +2,17 @@ const createPostElement = (post) => {
     const postEl = document.createElement('article');
     postEl.className = 'post';
     postEl.dataset.id = post.id;
-
     let content = '';
     switch (post.type) {
         case 'story':
-            content = `
-                <h2><a href="${post.url}" target="_blank">${post.title}</a></h2>
-                <div class="post-meta">
-                    <span>${post.score} points</span> | 
-                    <span>by ${post.by}</span> | 
-                    <span>${formatDate(post.time)}</span>
-                    <span class="load-comments" data-post-id="${post.id}">| ${post.descendants || 0} comments</span>
-                </div>
-            `;
-            break;
         case 'job':
             content = `
                 <h2><a href="${post.url}" target="_blank">${post.title}</a></h2>
                 <div class="post-meta">
+                    ${post.score ? `<span>${post.score} points</span> | ` : ''}
                     <span>by ${post.by}</span> | 
                     <span>${formatDate(post.time)}</span>
+                    ${post.descendants !== undefined ? `<span class="load-comments" data-post-id="${post.id}">| ${post.descendants} comments</span>` : ''}
                 </div>
             `;
             break;
@@ -32,25 +23,39 @@ const createPostElement = (post) => {
                     <span>${post.score} points</span> | 
                     <span>by ${post.by}</span> | 
                     <span>${formatDate(post.time)}</span>
+                    ${post.descendants ? `<span class="load-comments" data-post-id="${post.id}">| ${post.descendants} comments</span>` : ''}
                 </div>
                 <ul class="poll-options">
-                    ${post.parts ? post.parts.map(part => `<li>${part.text} (${part.score} votes)</li>`).join('') : ''}
+                    ${post.parts ? `<li>Loading poll options...</li>` : ''}
                 </ul>
             `;
             break;
     }
-
     content += `<div class="comments" id="comments-${post.id}"></div>`;
     postEl.innerHTML = content;
-
     const loadCommentsSpan = postEl.querySelector('.load-comments');
     if (loadCommentsSpan) {
         loadCommentsSpan.addEventListener('click', () => loadComments(post.id));
     }
-
+    if (post.type === 'poll' && post.parts) {
+        loadPollOptions(post.id, post.parts, postEl.querySelector('.poll-options'));
+    }
     return postEl;
 };
-
+const loadPollOptions = async (pollId, partIds, container) => {
+    try {
+        const pollParts = await Promise.all(partIds.map(fetchItem));
+        container.innerHTML = '';
+        pollParts.forEach(part => {
+            const optionEl = document.createElement('li');
+            optionEl.innerHTML = `${part.text} <span class="poll-score">(${part.score} votes)</span>`;
+            container.appendChild(optionEl);
+        });
+    } catch (error) {
+        console.error('Error loading poll options:', error);
+        container.innerHTML = '<li>Failed to load poll options. Please try again later.</li>';
+    }
+};
 const createCommentElement = (comment, depth = 0) => {
     const commentEl = document.createElement('div');
     commentEl.className = 'comment';
@@ -65,14 +70,12 @@ const createCommentElement = (comment, depth = 0) => {
     `;
     return commentEl;
 };
-
 const displayComments = (comments, container, depth = 0) => {
     comments.forEach(comment => {
         if (comment.deleted || comment.dead) return;
         
         const commentEl = createCommentElement(comment, depth);
         container.appendChild(commentEl);
-
         if (comment.kids && comment.kids.length > 0) {
             const repliesContainer = commentEl.querySelector('.replies');
             const toggleRepliesLink = commentEl.querySelector('.toggle-replies-link');
@@ -94,7 +97,6 @@ const displayComments = (comments, container, depth = 0) => {
         }
     });
 };
-
 const showNotification = (message) => {
     const notificationEl = document.getElementById('notifications');
     notificationEl.textContent = message;

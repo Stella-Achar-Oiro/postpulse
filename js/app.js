@@ -10,15 +10,18 @@ const loadPosts = debounce(async (page = currentPage) => {
     try {
         const storyIds = await fetchStories(currentStoryType, page);
         const posts = await Promise.all(storyIds.map(fetchItem));
-        posts.sort((a, b) => b.time - a.time);
+        const filteredPosts = currentStoryType === 'poll' 
+            ? posts.filter(post => post.type === 'poll')
+            : posts;
+        filteredPosts.sort((a, b) => b.time - a.time);
         
         const contentEl = document.getElementById('content');
         if (page === 1) contentEl.innerHTML = '';
-        posts.forEach(post => contentEl.appendChild(createPostElement(post)));
+        filteredPosts.forEach(post => contentEl.appendChild(createPostElement(post)));
         
         currentPage = page;
-        if (page === 1 && posts.length > 0) {
-            lastKnownItemId = posts[0].id;
+        if (page === 1 && filteredPosts.length > 0) {
+            lastKnownItemId = filteredPosts[0].id;
         }
     } catch (error) {
         console.error('Error loading posts:', error);
@@ -27,11 +30,9 @@ const loadPosts = debounce(async (page = currentPage) => {
         loading = false;
     }
 }, DEBOUNCE_DELAY);
-
 const loadMorePosts = () => {
     loadPosts(currentPage + 1);
 };
-
 const loadComments = async (postId) => {
     console.log(`Loading comments for post ${postId}`);
     const commentsContainer = document.getElementById(`comments-${postId}`);
@@ -44,7 +45,6 @@ const loadComments = async (postId) => {
         loadCommentsLink.textContent = isHidden ? 'hide comments' : `${loadCommentsLink.dataset.commentCount} comments`;
         return;
     }
-
     try {
         commentsContainer.innerHTML = '<p>Loading comments...</p>';
         const post = await fetchItem(postId);
@@ -67,25 +67,9 @@ const loadComments = async (postId) => {
         commentsContainer.innerHTML = '<p>Failed to load comments. Please try again later.</p>';
     }
 };
-
-const loadReplies = async (commentId, repliesContainer) => {
-    try {
-        const comment = await fetchItem(commentId);
-        if (comment.kids && comment.kids.length > 0) {
-            const replies = await Promise.all(comment.kids.map(fetchItem));
-            replies.sort((a, b) => b.time - a.time);
-            displayComments(replies, repliesContainer, 1);
-        }
-    } catch (error) {
-        console.error('Error loading replies:', error);
-        showNotification('Failed to load replies. Please try again later.');
-    }
-};
-
 const checkForUpdates = throttle(async () => {
     const now = Date.now();
     if (now - lastUpdateTime < 5000) return;
-
     try {
         const updates = await fetchUpdates();
         const newItems = updates.items.filter(id => id > lastKnownItemId);
@@ -100,32 +84,30 @@ const checkForUpdates = throttle(async () => {
         console.error('Error checking for updates:', error);
     }
 }, THROTTLE_DELAY);
-
 // Event listeners
-document.getElementById('load-more').addEventListener('click', loadMorePosts);
-
-document.querySelectorAll('nav a').forEach(link => {
-    link.addEventListener('click', (e) => {
-        e.preventDefault();
-        currentStoryType = e.target.dataset.storyType;
-        currentPage = 1;
-        loadPosts(1);
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('load-more').addEventListener('click', loadMorePosts);
+    document.querySelectorAll('nav a, .dropdown-content a').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            currentStoryType = e.target.dataset.storyType;
+            currentPage = 1;
+            loadPosts(1);
+        });
     });
+    document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('load-comments')) {
+            e.preventDefault();
+            const postId = e.target.dataset.postId;
+            loadComments(postId);
+        } else if (e.target.classList.contains('reply-link')) {
+            e.preventDefault();
+            const parentId = e.target.dataset.parentId;
+            // Implement reply functionality here
+            console.log(`Reply to comment ${parentId}`);
+        }
+    });
+    // Initialization
+    loadPosts(1);
+    setInterval(checkForUpdates, 5000);
 });
-
-document.addEventListener('click', (e) => {
-    if (e.target.classList.contains('load-comments')) {
-        e.preventDefault();
-        const postId = e.target.dataset.postId;
-        loadComments(postId);
-    } else if (e.target.classList.contains('reply-link')) {
-        e.preventDefault();
-        const parentId = e.target.dataset.parentId;
-        // Implement reply functionality here
-        console.log(`Reply to comment ${parentId}`);
-    }
-});
-
-// Initialization
-loadPosts(1);
-setInterval(checkForUpdates, 5000);

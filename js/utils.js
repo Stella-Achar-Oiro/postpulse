@@ -10,7 +10,6 @@ const throttle = (func, delay) => {
         return func(...args);
     };
 };
-
 const debounce = (func, delay) => {
     let timeoutId;
     return (...args) => {
@@ -18,7 +17,6 @@ const debounce = (func, delay) => {
         timeoutId = setTimeout(() => func(...args), delay);
     };
 };
-
 const formatDate = (timestamp) => {
     const date = new Date(timestamp * 1000);
     return date.toLocaleString();

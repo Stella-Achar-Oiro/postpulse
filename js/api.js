@@ -17,7 +17,6 @@ const fetchWithRetry = async (url, retries = 3) => {
         throw error;
     }
 };
-
 const fetchItem = async (id) => {
     if (itemCache.has(id)) {
         return itemCache.get(id);
@@ -26,20 +25,29 @@ const fetchItem = async (id) => {
     itemCache.set(id, item);
     return item;
 };
-
 const fetchStories = async (storyType, page = 1) => {
     const cachedStories = itemCache.get(`${storyType}_${page}`);
     if (cachedStories) {
         return cachedStories;
     }
-    const allStories = await fetchWithRetry(`${API_BASE_URL}${storyType}stories.json`);
+    let endpoint;
+    switch (storyType) {
+        case 'poll':
+            endpoint = 'topstories'; // Polls are included in top stories
+            break;
+        case 'job':
+            endpoint = 'jobstories';
+            break;
+        default:
+            endpoint = `${storyType}stories`;
+    }
+    const allStories = await fetchWithRetry(`${API_BASE_URL}${endpoint}.json`);
     const startIndex = (page - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
     const pageStories = allStories.slice(startIndex, endIndex);
     itemCache.set(`${storyType}_${page}`, pageStories);
     return pageStories;
 };
-
 const fetchUpdates = throttle(async () => {
     return fetchWithRetry(`${API_BASE_URL}updates.json`);
 }, THROTTLE_DELAY);
