@@ -59,29 +59,57 @@ const fetchItem = async (id) => {
     return item;
 };
 
+const fetchPollsFromAlgolia = async (page = 1) => {
+    const ITEMS_PER_PAGE = 20; // Make sure this matches your constant
+    const url = `https://hn.algolia.com/api/v1/search_by_date?tags=poll&page=${page - 1}&hitsPerPage=${ITEMS_PER_PAGE}`;
+    
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const data = await response.json();
+        return data.hits.map(hit => ({
+            id: hit.objectID,
+            title: hit.title,
+            by: hit.author,
+            time: new Date(hit.created_at).getTime() / 1000,
+            score: hit.points,
+            descendants: hit.num_comments,
+            type: 'poll'
+        }));
+    } catch (error) {
+        console.error('Error fetching polls from Algolia:', error);
+        throw error;
+    }
+};
+
 const fetchStories = async (storyType, page = 1) => {
     const cachedStories = itemCache.get(`${storyType}_${page}`);
     if (cachedStories) {
         return cachedStories;
     }
-    let endpoint;
-    switch (storyType) {
-        case 'poll':
-            endpoint = 'topstories'; // Polls are included in top stories
-            break;
-        case 'job':
-            endpoint = 'jobstories';
-            break;
-        default:
-            endpoint = `${storyType}stories`;
+
+    let stories;
+    if (storyType === 'poll') {
+        stories = await fetchPollsFromAlgolia(page);
+    } else {
+        let endpoint;
+        switch (storyType) {
+            case 'job':
+                endpoint = 'jobstories';
+                break;
+            default:
+                endpoint = `${storyType}stories`;
+        }
+        const allStories = await fetchWithRetry(`${API_BASE_URL}${endpoint}.json`);
+        const startIndex = (page - 1) * ITEMS_PER_PAGE;
+        const endIndex = startIndex + ITEMS_PER_PAGE;
+        stories = allStories.slice(startIndex, endIndex);
     }
-    const allStories = await fetchWithRetry(`${API_BASE_URL}${endpoint}.json`);
-    const startIndex = (page - 1) * ITEMS_PER_PAGE;
-    const endIndex = startIndex + ITEMS_PER_PAGE;
-    const pageStories = allStories.slice(startIndex, endIndex);
-    itemCache.set(`${storyType}_${page}`, pageStories);
-    return pageStories;
+
+    itemCache.set(`${storyType}_${page}`, stories);
+    return stories;
 };
+
 
 const fetchUpdates = throttle(async () => {
     return fetchWithRetry(`${API_BASE_URL}updates.json`);
@@ -202,19 +230,21 @@ const loadPosts = debounce(async (page = currentPage) => {
     loading = true;
     try {
         const storyIds = await fetchStories(currentStoryType, page);
-        const posts = await Promise.all(storyIds.map(fetchItem));
-        const filteredPosts = currentStoryType === 'poll' 
-            ? posts.filter(post => post.type === 'poll')
-            : posts;
-        filteredPosts.sort((a, b) => b.time - a.time);
+        let posts;
+        if (currentStoryType === 'poll') {
+            posts = storyIds; // For polls, we already have the full post data
+        } else {
+            posts = await Promise.all(storyIds.map(fetchItem));
+        }
+        posts.sort((a, b) => b.time - a.time);
         
         const contentEl = document.getElementById('content');
         if (page === 1) contentEl.innerHTML = '';
-        filteredPosts.forEach(post => contentEl.appendChild(createPostElement(post)));
+        posts.forEach(post => contentEl.appendChild(createPostElement(post)));
         
         currentPage = page;
-        if (page === 1 && filteredPosts.length > 0) {
-            lastKnownItemId = filteredPosts[0].id;
+        if (page === 1 && posts.length > 0) {
+            lastKnownItemId = posts[0].id;
         }
     } catch (error) {
         console.error('Error loading posts:', error);
